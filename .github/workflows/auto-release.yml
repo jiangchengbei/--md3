@@ -127,7 +127,7 @@ jobs:
         product: [ app ]
         # 如果是正式版，只构建 release；如果是测试版，构建 release 和 noR8
         type: ${{ (needs.prepare.outputs.is_release == 'true') && fromJSON('["release"]') || fromJSON('["release", "noR8"]') }}
-      fail-fast: false
+    fail-fast: false
     runs-on: ubuntu-latest
     env:
       product: ${{ matrix.product }}
@@ -187,7 +187,7 @@ jobs:
           echo "移动missing_rules.txt文件"
           MAPPING_DIR="${{ github.workspace }}/mapping"
           mkdir -p "$MAPPING_DIR"
-          # 使用 find 代替 ls，避免参数列表过长
+          # 使用 find 代代替 ls，避免参数列表过长
           find ${{ github.workspace }}/app/build/outputs/mapping/ -name "missing_rules.txt" -exec mv {} "$MAPPING_DIR/missing_rules.txt" \;
 
       - name: Upload Missing Rules File To Artifact
@@ -208,26 +208,15 @@ jobs:
             exit 1
           fi
 
-      - name: Upload universal APK
+      # =================【关键修复处】=================
+      # 将原本三个死板的分离上传步骤，合并为一个全面抓取的步骤
+      # 名字带有 -apk-，完美触发下游 create_release 任务的下载逻辑
+      - name: Upload All Generated APKs
         uses: actions/upload-artifact@v4
         with:
-          name: universal-apk-${{ env.type }}
+          name: generated-apk-${{ env.type }}
           if-no-files-found: error
-          path: app/build/outputs/apk/${{ env.product }}/${{ env.type }}/*universal*.apk
-
-      - name: Upload arm64-v8a APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: arm64-v8a-apk-${{ env.type }}
-          if-no-files-found: error
-          path: app/build/outputs/apk/${{ env.product }}/${{ env.type }}/*arm64-v8a*.apk
-
-      - name: Upload armeabi-v7a APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: armeabi-v7a-apk-${{ env.type }}
-          if-no-files-found: error
-          path: app/build/outputs/apk/${{ env.product }}/${{ env.type }}/*armeabi-v7a*.apk
+          path: app/build/outputs/apk/${{ env.product }}/${{ env.type }}/**/*.apk
 
       - name: Upload Mapping File To Artifact
         if: matrix.type == 'release'
@@ -243,7 +232,6 @@ jobs:
     if: |
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      github.actor == 'HapeLee' &&
       (needs.prepare.outputs.build_number > 0 || needs.prepare.outputs.is_release == 'true') &&
       success()
     runs-on: ubuntu-latest
@@ -292,9 +280,7 @@ jobs:
 
           ls -l
 
-      #
       # 获取 Commit 记录并格式化为 Release Body
-      #
       - name: 获取 Commit 记录
         id: get_commits
         run: |
